@@ -393,6 +393,8 @@ class WarehouseExplore(Node):
 	
 		# Log the results
 		self.logger.info(f"Detected {len(shelf_poses)} shelf-like objects.")
+		# Compute and store goal poses
+		self.shelf_goal_poses = self.compute_shelf_viewing_poses()
 		for idx, (x, y, theta) in enumerate(shelf_poses):
 			self.logger.info(f"Shelf {idx+1}: x={x:.2f}, y={y:.2f}, orientation={theta:.2f} rad")
 		
@@ -404,6 +406,50 @@ class WarehouseExplore(Node):
 			cv2.circle(debug_image, (map_x, map_y), 5, (0, 0, 255), -1)
 		
 		self.publish_debug_image(self.publisher_qr_decode, debug_image)
+
+	def compute_shelf_viewing_poses(self, distance_qr=1.0, distance_obj=1.0):
+	    """
+	    Compute robot poses for viewing QR and objects for each detected shelf.
+	
+	    Args:
+	        distance_qr (float): Distance to stand from shelf for QR scanning (meters)
+	        distance_obj (float): Distance to stand from shelf for object scanning (meters)
+	
+	    Returns:
+	        List[Tuple[PoseStamped, PoseStamped]]:
+	            For each shelf, a tuple (qr_pose, object_pose)
+	    """
+	    poses = []
+	
+	    for idx, (shelf_x, shelf_y, shelf_theta) in enumerate(self.shelf_detected_poses):
+	        # ---- QR Pose (parallel) ----
+	        qr_x = shelf_x + distance_qr * np.cos(shelf_theta)
+	        qr_y = shelf_y + distance_qr * np.sin(shelf_theta)
+	        qr_yaw = shelf_theta  # parallel
+	
+	        qr_pose = self.create_goal_from_world_coord(qr_x, qr_y, qr_yaw)
+	
+	        # ---- Object Pose (perpendicular) ----
+	        # Rotate shelf_theta by +90 degrees for perpendicular view
+	        object_theta = shelf_theta + np.pi/2
+	
+	        obj_x = shelf_x + distance_obj * np.cos(object_theta)
+	        obj_y = shelf_y + distance_obj * np.sin(object_theta)
+	        obj_yaw = object_theta  # facing perpendicular to shelf
+	
+	        obj_pose = self.create_goal_from_world_coord(obj_x, obj_y, obj_yaw)
+	
+	        # Save pair
+	        poses.append((qr_pose, obj_pose))
+	
+	        self.logger.info(
+	            f"Shelf {idx+1} poses:\n"
+	            f"  QR Pose: x={qr_x:.2f}, y={qr_y:.2f}, yaw={qr_yaw:.2f}\n"
+	            f"  Obj Pose: x={obj_x:.2f}, y={obj_y:.2f}, yaw={obj_yaw:.2f}"
+	        )
+	
+	    return poses
+
 
 	def global_map_callback(self, message):
 		"""Callback function to handle global map updates.
