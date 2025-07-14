@@ -737,11 +737,24 @@ class WarehouseExplore(Node):
 
 		if status == GoalStatus.STATUS_SUCCEEDED:
 			self.logger.info("Goal completed successfully!")
+
+			# --- NEW: Publish shelf data after goal completion ---
+			shelf_data_message = WarehouseShelf()
+			shelf_data_message.qr_decoded = self.qr_code_str
+			shelf_data_message.object_name = self.shelf_objects_curr.object_name
+			shelf_data_message.object_count = self.shelf_objects_curr.object_count
+
+			self.publisher_shelf_data.publish(shelf_data_message)
+			self.logger.info("Published shelf data after completing goal.")
+
 		else:
 			self.logger.warn(f"Goal failed with status: {status}")
 
 		self.goal_completed = True  # Mark goal as completed.
 		self.goal_handle_curr = None  # Clear goal handle.
+
+
+	
 
 	def goal_response_callback(self, future):
 		"""
