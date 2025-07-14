@@ -649,13 +649,13 @@ class WarehouseExplore(Node):
 		# How to send WarehouseShelf messages for evaluation.
 		
 		#Example for sending WarehouseShelf messages for evaluation.
-			shelf_data_message = WarehouseShelf()
+			'''shelf_data_message = WarehouseShelf()
 
 			shelf_data_message.object_name = ["car", "clock"]
 			shelf_data_message.object_count = [1, 2]
 			shelf_data_message.qr_decoded = "test qr string"
 
-			self.publisher_shelf_data.publish(shelf_data_message)
+			self.publisher_shelf_data.publish(shelf_data_message)'''
 
 		"""* Alternatively, you may store the QR for current shelf as self.qr_code_str.
 			Then, add it as self.shelf_objects_curr.qr_decoded = self.qr_code_str
