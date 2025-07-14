@@ -221,6 +221,9 @@ class WarehouseExplore(Node):
 		# --- Shelf Data ---
 		self.shelf_objects_curr = WarehouseShelf()
 
+		# --- Shelf Detection Data ---
+		self.shelf_detected_poses = []
+
 		# --- YOLOv5 TFLite Initialization ---
 		self.interpreter = tf.lite.Interpreter(model_path="yolov5s_f16.tflite")
 		self.interpreter.allocate_tensors()
@@ -324,6 +327,83 @@ class WarehouseExplore(Node):
 		self.world_center = self.get_world_coord_from_map_coord(
 			map_info.width / 2, map_info.height / 2, map_info
 		)
+		
+		self.detect_shelves_from_map()
+		
+	def detect_shelves_from_map(self):
+		"""
+		Detect shelves from the occupancy grid in self.simple_map_curr.
+		Stores detected shelves into self.shelf_detected_poses.
+		"""
+		map_msg = self.simple_map_curr
+		if map_msg is None:
+			return
+	
+		# Extract map info
+		height = map_msg.info.height
+		width = map_msg.info.width
+		res = map_msg.info.resolution
+		origin_x = map_msg.info.origin.position.x
+		origin_y = map_msg.info.origin.position.y
+	
+		# Convert map data to numpy
+		map_data = np.array(map_msg.data, dtype=np.int8).reshape((height, width))
+	
+		# Create binary map for occupied cells
+		binary_map = (map_data == 100).astype(np.uint8)
+	
+		# Label connected components
+		labeled_map, num_features = label(binary_map)
+	
+		shelf_poses = []
+	
+		for label_id in range(1, num_features + 1):
+			# Find pixels belonging to this label
+			mask = labeled_map == label_id
+			points = np.argwhere(mask)
+	
+			# Filter out small noise clusters
+			if len(points) < 50:
+				continue
+	
+			# Compute center of mass in map coords
+			cy, cx = points.mean(axis=0)
+	
+			# PCA to measure length, width, and orientation
+			pca = PCA(n_components=2)
+			pca.fit(points)
+			lengths = 2 * np.sqrt(pca.explained_variance_)
+	
+			# Convert to meters
+			length_x_m = lengths[0] * res
+			length_y_m = lengths[1] * res
+	
+			# Check if dimensions match shelf size
+			if (0.4 <= min(length_x_m, length_y_m) <= 0.6 and 1.2 <= max(length_x_m, length_y_m) <= 1.5):
+				# Shelf detected!
+				orientation = np.arctan2(pca.components_[0][1], pca.components_[0][0])
+	
+				# Convert center of mass to world coordinates
+				world_x = cx * res + origin_x
+				world_y = cy * res + origin_y
+	
+				shelf_poses.append((world_x, world_y, orientation))
+	
+		self.shelf_detected_poses = shelf_poses
+	
+		# Log the results
+		self.logger.info(f"Detected {len(shelf_poses)} shelf-like objects.")
+		for idx, (x, y, theta) in enumerate(shelf_poses):
+			self.logger.info(f"Shelf {idx+1}: x={x:.2f}, y={y:.2f}, orientation={theta:.2f} rad")
+		
+		# Optional debug visualization
+		debug_image = cv2.cvtColor(binary_map * 255, cv2.COLOR_GRAY2BGR)
+		
+		for world_x, world_y, orientation in shelf_poses:
+			map_x, map_y = self.get_map_coord_from_world_coord(world_x, world_y, map_msg.info)
+			cv2.circle(debug_image, (map_x, map_y), 5, (0, 0, 255), -1)
+		
+		self.publish_debug_image(self.publisher_qr_decode, debug_image)
 
 	def global_map_callback(self, message):
 		"""Callback function to handle global map updates.
