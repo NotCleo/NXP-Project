@@ -1,0 +1,99 @@
+Build Your Workspace
+After editing message definitions (e.g. WarehouseShelf), you must rebuild your ROS2 workspace so the generated Python message code reflects your changes.
+
+Run these from your ROS workspace root (e.g. ~/ros2_ws or wherever your package lives):
+
+bash
+Copy code
+colcon build --symlink-install
+Then source the workspace:
+
+bash
+Copy code
+source install/setup.bash
+If you use zsh:
+
+bash
+Copy code
+source install/setup.zsh
+⚠️ Don’t skip this. If you don’t rebuild, Python will still see your old message definition and errors like:
+
+pgsql
+Copy code
+AttributeError: 'WarehouseShelf' object has no attribute 'qr_decoded'
+will persist.
+
+2. Check the Generated Python Message
+Double-check that your updated message (WarehouseShelf) has the new field:
+
+bash
+Copy code
+cd install/synapse_msgs/local/lib/python3.10/dist-packages/synapse_msgs/msg
+cat _warehouse_shelf.py
+Look for:
+
+python
+Copy code
+'_fields_and_field_types = {
+    'object_name': 'sequence<string>',
+    'object_count': 'sequence<int32>',
+    'qr_decoded': 'string'
+}
+If that’s there → success → your Python code can now use qr_decoded.
+
+3. Run Your Node
+Your node entry point is:
+
+python
+Copy code
+if __name__ == '__main__':
+    main()
+So run:
+
+bash
+Copy code
+ros2 run <your_package_name> warehouse
+Replace <your_package_name> with the name defined in your package.xml.
+
+Example:
+
+bash
+Copy code
+ros2 run warehouse_navigation warehouse
+Or if you run it via Python directly (not recommended):
+
+bash
+Copy code
+python3 src/warehouse.py
+If you run directly, remember to source the workspace first!
+
+4. Check for Errors
+If you see:
+
+pgsql
+Copy code
+AttributeError: 'WarehouseShelf' object has no attribute 'qr_decoded'
+→ it means the rebuild didn’t happen properly or the workspace wasn’t sourced.
+
+5. Test the System
+Publish dummy /camera/image_raw/compressed messages to test QR and YOLO logic.
+
+Publish fake /map or /global_costmap/costmap to test shelf detection.
+
+See if your GUI pops up and updates.
+
+E.g. try publishing a WarehouseShelf message manually:
+
+bash
+Copy code
+ros2 topic pub /shelf_objects synapse_msgs/msg/WarehouseShelf \
+"{object_name: ['box', 'bottle'], object_count: [2, 3], qr_decoded: 'HELLO WORLD'}"
+→ It should trigger your shelf_objects_callback() and update the GUI.
+
+6. Optional: Debug Prints
+If something still fails, add:
+
+python
+Copy code
+print(dir(WarehouseShelf))
+right before using the message to verify its attributes.
