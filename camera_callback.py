@@ -5,6 +5,24 @@ def camera_image_callback(self, message):
 
     input_img = self.preprocess_image(image)
 
+    
+	# This below line does the Detection first
+	qr_detector = cv2.QRCodeDetector()
+
+	# This below line does the decoding after detection (qr_detector)
+	data, points, _ = qr_detector.detectAndDecode(image)
+
+	if data:
+		self.qr_code_str = data
+		self.get_logger().info(f"QR Code Data: {data}")
+
+		if points is not None:
+			points = points.astype(int)
+			for i in range(len(points[0])):
+				pt1 = tuple(points[0][i])
+				pt2 = tuple(points[0][(i + 1) % len(points[0])])
+				cv2.line(image, pt1, pt2, color=(0, 255, 0), thickness=3)
+
     if self.int8:
         scale, zero_point = self.input_details[0]["quantization"]
         input_img = (input_img / scale + zero_point).astype(np.uint8)
